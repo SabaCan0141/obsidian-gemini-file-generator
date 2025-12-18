@@ -33,6 +33,13 @@ var DEFAULT_SETTINGS = {
   retryIntervalSec: 5,
   maxRetryWaitSec: 60
 };
+var MODEL_OPTIONS = {
+  "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
+  "gemini-2.5-flash": "gemini-2.5-flash",
+  "gemini-2.5-pro": "gemini-2.5-pro",
+  "gemini-3-flash-preview": "gemini-3-flash-preview",
+  "gemini-3-pro-preview": "gemini-3-pro-preview"
+};
 var GeminiSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -42,34 +49,12 @@ var GeminiSettingTab = class extends import_obsidian.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "Gemini File Generator - Settings" });
-    new import_obsidian.Setting(containerEl).setName("Gemini API Key").setDesc("API key for Gemini (stored as plain text in plugin settings).").addText((text) => text.setPlaceholder("Enter API key").setValue(this.plugin.settings.apiKey || "").onChange(async (value) => {
-      this.plugin.settings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
-    containerEl.createEl("h3", { text: "Presets" });
-    const presetsDiv = containerEl.createDiv();
-    const refreshPresets = () => {
-      presetsDiv.empty();
-      this.plugin.settings.presets.forEach((p, i) => {
-        const row = presetsDiv.createDiv({ cls: "setting-item" });
-        row.createEl("strong", { text: p.name });
-        row.createEl("div", { text: `Model: ${p.model} \u2022 Output: ${p.outputPath}` });
-        const btns = row.createDiv({ cls: "setting-buttons" });
-        const edit = btns.createEl("button", { text: "Edit" });
-        const del = btns.createEl("button", { text: "Delete" });
-        edit.onclick = () => {
-          this.openEditModal(i);
-        };
-        del.onclick = async () => {
-          this.plugin.settings.presets.splice(i, 1);
-          await this.plugin.saveSettings();
-          refreshPresets();
-        };
-      });
-      const addBtn = containerEl.createEl("button", { text: "Add preset" });
-      addBtn.onclick = () => this.openCreateModal();
-    };
-    refreshPresets();
+    new import_obsidian.Setting(containerEl).setName("Gemini API Key").setDesc("API key for Gemini (stored as plain text in plugin settings).").addText(
+      (text) => text.setPlaceholder("AIza...").setValue(this.plugin.settings.apiKey).onChange(async (value) => {
+        this.plugin.settings.apiKey = value.trim();
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian.Setting(containerEl).setName("Retry interval (seconds)").setDesc("Interval between retries when Gemini API is overloaded.").addText(
       (text) => text.setValue(String(this.plugin.settings.retryIntervalSec)).onChange(async (value) => {
         const v = Number(value);
@@ -88,71 +73,78 @@ var GeminiSettingTab = class extends import_obsidian.PluginSettingTab {
         }
       })
     );
+    new import_obsidian.Setting(containerEl).setName("Presets");
+    const presetContainer = containerEl.createDiv();
+    this.renderPresetList(presetContainer);
   }
-  openCreateModal() {
-    this.openPresetModal(null);
+  /* ===== Preset List ===== */
+  renderPresetList(containerEl) {
+    this.plugin.settings.presets.forEach((preset, index) => {
+      const card = containerEl.createDiv("gemini-preset-card");
+      new import_obsidian.Setting(card).setName(preset.name || "(Unnamed preset)").setDesc(
+        `Model: ${preset.model}
+Output folder: ${preset.outputPath || "(root)"}`
+      ).addButton(
+        (btn) => btn.setButtonText("Edit").onClick(() => {
+          this.openPresetEditor(index);
+        })
+      ).addButton(
+        (btn) => btn.setButtonText("Delete").setWarning().onClick(async () => {
+          this.plugin.settings.presets.splice(index, 1);
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
+    });
+    const addWrapper = containerEl.createDiv();
+    addWrapper.style.marginTop = "8px";
+    new import_obsidian.Setting(addWrapper).addButton(
+      (btn) => btn.setButtonText("Add preset").setCta().onClick(() => this.openPresetEditor())
+    );
   }
-  openEditModal(index) {
-    this.openPresetModal(index);
-  }
-  openPresetModal(index) {
-    const preset = index === null ? { name: "", model: "", prompt: "", outputPath: "" } : { ...this.plugin.settings.presets[index] };
-    const plugin = this.plugin;
-    const tab = this;
-    class PresetModal extends import_obsidian.Modal {
-      constructor(app, idx, preset2) {
-        super(app);
-        this.idx = idx;
-        this.preset = preset2;
-      }
-      onOpen() {
-        var _a2, _b, _c, _d;
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.createEl("h3", {
-          text: this.idx === null ? "Create preset" : "Edit preset"
-        });
-        const nameInput = contentEl.createEl("input");
-        nameInput.placeholder = "Preset name";
-        nameInput.value = (_a2 = this.preset.name) != null ? _a2 : "";
-        const modelInput = contentEl.createEl("input");
-        modelInput.placeholder = "Model name";
-        modelInput.value = (_b = this.preset.model) != null ? _b : "";
-        const promptInput = contentEl.createEl("textarea");
-        promptInput.placeholder = "Prompt";
-        promptInput.value = (_c = this.preset.prompt) != null ? _c : "";
-        promptInput.style.width = "100%";
-        promptInput.style.height = "120px";
-        const outputInput = contentEl.createEl("input");
-        outputInput.placeholder = "Output path";
-        outputInput.value = (_d = this.preset.outputPath) != null ? _d : "";
-        const saveBtn = contentEl.createEl("button", { text: "Save" });
-        saveBtn.onclick = async () => {
-          const newPreset = {
-            name: nameInput.value.trim(),
-            model: modelInput.value.trim(),
-            prompt: promptInput.value,
-            outputPath: outputInput.value.trim()
-          };
-          if (!newPreset.name) {
-            new import_obsidian.Notice("Preset name is required");
-            return;
-          }
-          if (this.idx === null) {
-            plugin.settings.presets.push(newPreset);
-          } else {
-            plugin.settings.presets[this.idx] = newPreset;
-          }
-          await plugin.saveSettings();
-          this.close();
-          tab.display();
-        };
-      }
-      onClose() {
-        this.contentEl.empty();
-      }
-    }
-    new PresetModal(this.app, index, preset).open();
+  /* ===== Preset Editor ===== */
+  openPresetEditor(index) {
+    const isEdit = index !== void 0;
+    const preset = isEdit ? { ...this.plugin.settings.presets[index] } : {
+      name: "",
+      model: "gemini-2.5-flash",
+      prompt: "",
+      outputPath: ""
+    };
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h3", {
+      text: isEdit ? "Edit preset" : "Create preset"
+    });
+    new import_obsidian.Setting(containerEl).setName("Preset name").addText(
+      (text) => text.setValue(preset.name).onChange((v) => preset.name = v)
+    );
+    new import_obsidian.Setting(containerEl).setName("Model").addDropdown((dropdown) => {
+      dropdown.addOptions(MODEL_OPTIONS);
+      dropdown.setValue(preset.model);
+      dropdown.onChange((v) => preset.model = v);
+    });
+    new import_obsidian.Setting(containerEl).setName("Output folder").setDesc("Vault-relative path").addText(
+      (text) => text.setPlaceholder("e.g. Papers/Translated").setValue(preset.outputPath).onChange((v) => preset.outputPath = v)
+    );
+    new import_obsidian.Setting(containerEl).setName("Prompt").addTextArea((area) => {
+      area.setValue(preset.prompt).onChange((v) => preset.prompt = v);
+      area.inputEl.rows = 10;
+      area.inputEl.style.width = "100%";
+    });
+    new import_obsidian.Setting(containerEl).addButton(
+      (btn) => btn.setButtonText("Save").setCta().onClick(async () => {
+        if (isEdit) {
+          this.plugin.settings.presets[index] = preset;
+        } else {
+          this.plugin.settings.presets.push(preset);
+        }
+        await this.plugin.saveSettings();
+        this.display();
+      })
+    ).addButton(
+      (btn) => btn.setButtonText("Cancel").onClick(() => this.display())
+    );
   }
 };
 

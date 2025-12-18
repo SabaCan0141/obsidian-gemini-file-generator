@@ -1,5 +1,7 @@
-import { App, PluginSettingTab, Setting, Modal, Notice } from "obsidian";
+import { App, PluginSettingTab, Setting } from "obsidian";
+import GeminiFileGeneratorPlugin from "./main";
 
+/* ===== 型定義 ===== */
 
 export interface GeminiPreset {
   name: string;
@@ -11,9 +13,8 @@ export interface GeminiPreset {
 export interface GeminiPluginSettings {
   apiKey: string;
   presets: GeminiPreset[];
-
-  retryIntervalSec: number;   // 再試行間隔（秒）
-  maxRetryWaitSec: number;    // 最大待機時間（秒）
+  retryIntervalSec: number;
+  maxRetryWaitSec: number;
 }
 
 export const DEFAULT_SETTINGS: GeminiPluginSettings = {
@@ -23,51 +24,48 @@ export const DEFAULT_SETTINGS: GeminiPluginSettings = {
   maxRetryWaitSec: 60
 };
 
+/* ===== 定数 ===== */
+
+const MODEL_OPTIONS: Record<string, string> = {
+  "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
+  "gemini-2.5-flash": "gemini-2.5-flash",
+  "gemini-2.5-pro": "gemini-2.5-pro",
+  "gemini-3-flash-preview": "gemini-3-flash-preview",
+  "gemini-3-pro-preview": "gemini-3-pro-preview"
+};
+
+/* ===== Setting Tab ===== */
+
 export class GeminiSettingTab extends PluginSettingTab {
-  plugin: any;
-  constructor(app: App, plugin: any) {
+  plugin: GeminiFileGeneratorPlugin;
+
+  constructor(app: App, plugin: GeminiFileGeneratorPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
 
   display(): void {
-    const {containerEl} = this;
+    const { containerEl } = this;
     containerEl.empty();
+
     containerEl.createEl("h2", { text: "Gemini File Generator - Settings" });
+
+    /* ===== API Key ===== */
 
     new Setting(containerEl)
       .setName("Gemini API Key")
       .setDesc("API key for Gemini (stored as plain text in plugin settings).")
-      .addText(text => text
-        .setPlaceholder("Enter API key")
-        .setValue(this.plugin.settings.apiKey || "")
-        .onChange(async (value) => {
-          this.plugin.settings.apiKey = value;
-          await this.plugin.saveSettings();
-        }));
+      .addText(text =>
+        text
+          .setPlaceholder("AIza...")
+          .setValue(this.plugin.settings.apiKey)
+          .onChange(async value => {
+            this.plugin.settings.apiKey = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
 
-    containerEl.createEl("h3", { text: "Presets" });
-    const presetsDiv = containerEl.createDiv();
-    const refreshPresets = () => {
-      presetsDiv.empty();
-      this.plugin.settings.presets.forEach((p: any, i: number) => {
-        const row = presetsDiv.createDiv({ cls: "setting-item" });
-        row.createEl("strong", { text: p.name });
-        row.createEl("div", { text: `Model: ${p.model} • Output: ${p.outputPath}`});
-        const btns = row.createDiv({ cls: "setting-buttons" });
-        const edit = btns.createEl("button", { text: "Edit" });
-        const del = btns.createEl("button", { text: "Delete" });
-        edit.onclick = () => { this.openEditModal(i); };
-        del.onclick = async () => {
-          this.plugin.settings.presets.splice(i, 1);
-          await this.plugin.saveSettings();
-          refreshPresets();
-        };
-      });
-      const addBtn = containerEl.createEl("button", { text: "Add preset" });
-      addBtn.onclick = () => this.openCreateModal();
-    };
-    refreshPresets();
+    /* ===== Retry Settings ===== */
 
     new Setting(containerEl)
       .setName("Retry interval (seconds)")
@@ -99,91 +97,127 @@ export class GeminiSettingTab extends PluginSettingTab {
           })
       );
 
+    /* ===== Presets ===== */
+
+    new Setting(containerEl)
+      .setName("Presets");
+
+    const presetContainer = containerEl.createDiv();
+    this.renderPresetList(presetContainer);
+
   }
 
-  openCreateModal() {
-    this.openPresetModal(null);
-  }
+  /* ===== Preset List ===== */
 
-  openEditModal(index: number) {
-    this.openPresetModal(index);
-  }
+private renderPresetList(containerEl: HTMLElement) {
+  this.plugin.settings.presets.forEach((preset, index) => {
+    const card = containerEl.createDiv("gemini-preset-card");
 
-  openPresetModal(index: number | null) {
-    const preset =
-      index === null
-        ? { name: "", model: "", prompt: "", outputPath: "" }
-        : { ...this.plugin.settings.presets[index] };
+    new Setting(card)
+      .setName(preset.name || "(Unnamed preset)")
+      .setDesc(
+        `Model: ${preset.model}\nOutput folder: ${preset.outputPath || "(root)"}`
+      )
+      .addButton(btn =>
+        btn.setButtonText("Edit").onClick(() => {
+          this.openPresetEditor(index);
+        })
+      )
+      .addButton(btn =>
+        btn
+          .setButtonText("Delete")
+          .setWarning()
+          .onClick(async () => {
+            this.plugin.settings.presets.splice(index, 1);
+            await this.plugin.saveSettings();
+            this.display();
+          })
+      );
+  });
 
-    const plugin = this.plugin;
-    const tab = this;
+  // Add preset ボタン（区切り線なし）
+  const addWrapper = containerEl.createDiv();
+  addWrapper.style.marginTop = "8px";
 
-    class PresetModal extends Modal {
-      idx: number | null;
-      preset: any;
+  new Setting(addWrapper).addButton(btn =>
+    btn
+      .setButtonText("Add preset")
+      .setCta()
+      .onClick(() => this.openPresetEditor())
+  );
+}
 
-      constructor(app: App, idx: number | null, preset: any) {
-        super(app);
-        this.idx = idx;
-        this.preset = preset;
-      }
 
-      onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.createEl("h3", {
-          text: this.idx === null ? "Create preset" : "Edit preset",
-        });
+  /* ===== Preset Editor ===== */
 
-        const nameInput = contentEl.createEl("input");
-        nameInput.placeholder = "Preset name";
-        nameInput.value = this.preset.name ?? "";
+  private openPresetEditor(index?: number) {
+    const isEdit = index !== undefined;
 
-        const modelInput = contentEl.createEl("input");
-        modelInput.placeholder = "Model name";
-        modelInput.value = this.preset.model ?? "";
-
-        const promptInput = contentEl.createEl("textarea");
-        promptInput.placeholder = "Prompt";
-        promptInput.value = this.preset.prompt ?? "";
-        promptInput.style.width = "100%";
-        promptInput.style.height = "120px";
-
-        const outputInput = contentEl.createEl("input");
-        outputInput.placeholder = "Output path";
-        outputInput.value = this.preset.outputPath ?? "";
-
-        const saveBtn = contentEl.createEl("button", { text: "Save" });
-        saveBtn.onclick = async () => {
-          const newPreset = {
-            name: nameInput.value.trim(),
-            model: modelInput.value.trim(),
-            prompt: promptInput.value,
-            outputPath: outputInput.value.trim(),
-          };
-
-          if (!newPreset.name) {
-            new Notice("Preset name is required");
-            return;
-          }
-
-          if (this.idx === null) {
-            plugin.settings.presets.push(newPreset);
-          } else {
-            plugin.settings.presets[this.idx] = newPreset;
-          }
-
-          await plugin.saveSettings();
-          this.close();
-          tab.display();
+    const preset: GeminiPreset = isEdit
+      ? { ...this.plugin.settings.presets[index!] }
+      : {
+          name: "",
+          model: "gemini-2.5-flash",
+          prompt: "",
+          outputPath: ""
         };
-      }
 
-      onClose() {
-        this.contentEl.empty();
-      }
-    }
+    const { containerEl } = this;
+    containerEl.empty();
 
-    new PresetModal(this.app, index, preset).open();
+    containerEl.createEl("h3", {
+      text: isEdit ? "Edit preset" : "Create preset"
+    });
+
+    new Setting(containerEl)
+      .setName("Preset name")
+      .addText(text =>
+        text.setValue(preset.name).onChange(v => (preset.name = v))
+      );
+
+    new Setting(containerEl)
+      .setName("Model")
+      .addDropdown(dropdown => {
+        dropdown.addOptions(MODEL_OPTIONS);
+        dropdown.setValue(preset.model);
+        dropdown.onChange(v => (preset.model = v));
+      });
+
+    new Setting(containerEl)
+      .setName("Output folder")
+      .setDesc("Vault-relative path")
+      .addText(text =>
+        text
+          .setPlaceholder("e.g. Papers/Translated")
+          .setValue(preset.outputPath)
+          .onChange(v => (preset.outputPath = v))
+      );
+
+    new Setting(containerEl)
+      .setName("Prompt")
+      .addTextArea(area => {
+        area.setValue(preset.prompt).onChange(v => (preset.prompt = v));
+        area.inputEl.rows = 10;
+        area.inputEl.style.width = "100%";
+      });
+
+    new Setting(containerEl)
+      .addButton(btn =>
+        btn
+          .setButtonText("Save")
+          .setCta()
+          .onClick(async () => {
+            if (isEdit) {
+              this.plugin.settings.presets[index!] = preset;
+            } else {
+              this.plugin.settings.presets.push(preset);
+            }
+            await this.plugin.saveSettings();
+            this.display();
+          })
+      )
+      .addButton(btn =>
+        btn.setButtonText("Cancel").onClick(() => this.display())
+      );
   }
 }
