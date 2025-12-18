@@ -1,7 +1,7 @@
 {
   "id": "obsidian-gemini-file-generator",
   "name": "Obsidian Gemini File Generator",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "minAppVersion": "1.10.6",
   "author": "you",
   "description": "Select a file (e.g. PDF), send to Gemini via official SDK, save response as a new note.",
