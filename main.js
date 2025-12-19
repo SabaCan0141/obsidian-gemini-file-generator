@@ -16561,9 +16561,7 @@ var GeminiFileGeneratorPlugin = class extends import_obsidian2.Plugin {
       }
     });
   }
-  /* ================================
-   * Main Execution Flow
-   * ================================ */
+  /* ===== Main Execution Flow ===== */
   async runWithPreset(preset) {
     const file = await this.pickFile();
     if (!file)
@@ -16595,9 +16593,7 @@ var GeminiFileGeneratorPlugin = class extends import_obsidian2.Plugin {
       notice.hide();
     }
   }
-  /* ================================
-   * File Picker
-   * ================================ */
+  /* ===== File Picker ===== */
   async pickFile() {
     return new Promise((resolve) => {
       const input = document.createElement("input");
@@ -16617,9 +16613,7 @@ var GeminiFileGeneratorPlugin = class extends import_obsidian2.Plugin {
       document.body.removeChild(input);
     });
   }
-  /* ================================
-   * Helpers
-   * ================================ */
+  /* ===== Helpers ===== */
   fileToBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -16632,9 +16626,7 @@ var GeminiFileGeneratorPlugin = class extends import_obsidian2.Plugin {
       reader.readAsDataURL(file);
     });
   }
-  /* ================================
-   * Note Creation
-   * ================================ */
+  /* ===== Note Creation ===== */
   async createNote(folder, baseName, content) {
     const dir = (folder == null ? void 0 : folder.trim()) || "";
     if (dir) {
@@ -16653,9 +16645,7 @@ var GeminiFileGeneratorPlugin = class extends import_obsidian2.Plugin {
     }
     await this.app.vault.create(path2, content);
   }
-  /* ================================
-   * Settings
-   * ================================ */
+  /* ===== Settings ===== */
   async loadSettings() {
     this.settings = Object.assign(
       {},

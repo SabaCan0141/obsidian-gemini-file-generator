@@ -2,9 +2,7 @@ import { App, Notice, Plugin, SuggestModal } from "obsidian";
 import { DEFAULT_SETTINGS, GeminiPluginSettings, GeminiPreset, GeminiSettingTab } from "./settings";
 import { generateFromInlineData } from "./gemini";
 
-/* ================================
- * Preset Select Modal
- * ================================ */
+/* ===== Preset Select Modal ===== */
 
 class PresetSelectModal extends SuggestModal<GeminiPreset> {
   plugin: GeminiFileGeneratorPlugin;
@@ -37,9 +35,7 @@ class PresetSelectModal extends SuggestModal<GeminiPreset> {
   }
 }
 
-/* ================================
- * Plugin
- * ================================ */
+/* ===== Plugin ===== */
 
 export default class GeminiFileGeneratorPlugin extends Plugin {
   settings: GeminiPluginSettings;
@@ -62,9 +58,7 @@ export default class GeminiFileGeneratorPlugin extends Plugin {
     });
   }
 
-  /* ================================
-   * Main Execution Flow
-   * ================================ */
+  /* ===== Main Execution Flow ===== */
 
   async runWithPreset(preset: GeminiPreset) {
     // 1. File picker (Returns standard File object, not TFile)
@@ -94,7 +88,7 @@ export default class GeminiFileGeneratorPlugin extends Plugin {
 
       // Remove extension for the note name
       const baseName = file.name.replace(/\.[^/.]+$/, "");
-      
+
       await this.createNote(
         preset.outputPath,
         baseName,
@@ -108,9 +102,7 @@ export default class GeminiFileGeneratorPlugin extends Plugin {
     }
   }
 
-  /* ================================
-   * File Picker
-   * ================================ */
+  /* ===== File Picker ===== */
 
   async pickFile(): Promise<File | null> {
     return new Promise(resolve => {
@@ -135,9 +127,7 @@ export default class GeminiFileGeneratorPlugin extends Plugin {
     });
   }
 
-  /* ================================
-   * Helpers
-   * ================================ */
+  /* ===== Helpers ===== */
 
   fileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -153,9 +143,7 @@ export default class GeminiFileGeneratorPlugin extends Plugin {
     });
   }
 
-  /* ================================
-   * Note Creation
-   * ================================ */
+  /* ===== Note Creation ===== */
 
   async createNote(
     folder: string,
@@ -187,9 +175,7 @@ export default class GeminiFileGeneratorPlugin extends Plugin {
     await this.app.vault.create(path, content);
   }
 
-  /* ================================
-   * Settings
-   * ================================ */
+  /* ===== Settings ===== */
 
   async loadSettings() {
     this.settings = Object.assign(

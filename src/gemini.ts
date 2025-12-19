@@ -1,6 +1,3 @@
-// gemini.ts
-import type { GeminiPluginSettings } from "./settings";
-// SDK import (公式 Gen AI SDK)
 import { GoogleGenAI } from "@google/genai";
 
 async function sleep(ms: number) {
@@ -24,28 +21,22 @@ type GenResponse = {
 };
 
 function extractTextFromResponse(resp: any): string | null {
-  // SDK のバージョンやモデルによりレスポンス構造が若干変わるため、
-  // 可能なフィールドを順に確認して文字列を取り出す（堅牢化）。
   try {
     if (!resp) return null;
-    // 新しい SDK の簡易プロパティ（場合により存在）
     if (typeof resp.text === "string" && resp.text.length) return resp.text;
     if (typeof resp.outputText === "string" && resp.outputText.length) return resp.outputText;
 
-    // よくあるネスト形態: candidates[0].content.parts[].text
     const cand = resp.candidates?.[0];
     if (cand?.content?.parts && Array.isArray(cand.content.parts)) {
       const parts = cand.content.parts.map((p: any) => p?.text || "").filter((s: string) => s.length > 0);
       if (parts.length) return parts.join("\n\n");
     }
 
-    // SDK による別形態
     if (Array.isArray(resp.output) && resp.output.length) {
       const texts = resp.output.map((o: any) => o.text || "").filter((s: string) => s.length);
       if (texts.length) return texts.join("\n\n");
     }
 
-    // fallback: JSON 化して返す（非空なら）
     const s = JSON.stringify(resp);
     return s.length ? s : null;
   } catch (e) {

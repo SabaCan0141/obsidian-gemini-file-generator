@@ -1,4 +1,3 @@
-// esbuild.config.mjs
 import esbuild from "esbuild";
 import process from "process";
 
@@ -8,8 +7,8 @@ esbuild.build({
   entryPoints: ["src/main.ts"],
   bundle: true,
   outfile: "main.js",
-  external: ["obsidian"],      // ★必須：Obsidian API はバンドルしない
-  format: "cjs",               // ★必須：CommonJS
+  external: ["obsidian"],
+  format: "cjs",
   target: "es2018",
   sourcemap: !isProd,
   minify: isProd,

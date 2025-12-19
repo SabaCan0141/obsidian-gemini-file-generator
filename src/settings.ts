@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import GeminiFileGeneratorPlugin from "./main";
 
-/* ===== 型定義 ===== */
+/* ===== define ===== */
 
 export interface GeminiPreset {
   name: string;
@@ -23,8 +23,6 @@ export const DEFAULT_SETTINGS: GeminiPluginSettings = {
   retryIntervalSec: 5,
   maxRetryWaitSec: 60
 };
-
-/* ===== 定数 ===== */
 
 const MODEL_OPTIONS: Record<string, string> = {
   "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
@@ -135,7 +133,7 @@ private renderPresetList(containerEl: HTMLElement) {
       );
   });
 
-  // Add preset ボタン（区切り線なし）
+  // Add preset
   const addWrapper = containerEl.createDiv();
   addWrapper.style.marginTop = "8px";
 
